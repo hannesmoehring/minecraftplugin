@@ -10,3 +10,6 @@ permissions:
   assistpl.nearby:
     description: Allows usage of the nearby command
     default: true
+  assistpl.hunt:
+    description: Allows usage of the manhunt commands
+    default: true

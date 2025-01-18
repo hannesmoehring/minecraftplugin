@@ -1,17 +1,18 @@
 package me.hmPlugin.assistPl;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
 import org.bukkit.command.TabCompleter;
 import org.bukkit.entity.Player;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import me.hmPlugin.assistPl.commands.HelpCommand;
+import me.hmPlugin.assistPl.commands.HuntCommand;
 import me.hmPlugin.assistPl.commands.NearbyCommand;
 
 public class CommandManager implements CommandExecutor, TabCompleter {
@@ -27,6 +28,7 @@ public class CommandManager implements CommandExecutor, TabCompleter {
     private void registerSubCommands() {
         subCommands.put("help", new HelpCommand());
         subCommands.put("nearby", new NearbyCommand(plugin));
+        subCommands.put("hunt", new HuntCommand(plugin));
     }
 
     @Override
