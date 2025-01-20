@@ -223,25 +223,6 @@ public class HuntCommand implements SubCommand, Listener {
                 // Start Effects like blindness and slowness
                 hunter.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, freezeTime * 20, 100));
                 hunter.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, freezeTime * 20, 100));
-                
-                // Hunter tracking compass
-                ItemStack compass = new ItemStack(Material.COMPASS);
-                CompassMeta meta = (CompassMeta) compass.getItemMeta();
-                meta.setDisplayName("§6Runner Tracker");
-                meta.setLodestone(hunter.getLocation());
-                meta.setLodestoneTracked(false);
-                // Add invisible Curse of Vanishing
-                meta.addEnchant(Enchantment.VANISHING_CURSE, 1, true);
-                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
-                
-                // Mark compass with PersistentDataContainer
-                NamespacedKey key = new NamespacedKey(getPermission(), "tracker_compass");
-                meta.getPersistentDataContainer().set(key, PersistentDataType.BOOLEAN, true);
-                
-                compass.setItemMeta(meta);
-                hunter.getInventory().addItem(compass);
-                
-                currentTargetIndex.put(hunterId, 0); // Compass is pointing to the first runner
             }
         }
 
@@ -266,45 +247,37 @@ public class HuntCommand implements SubCommand, Listener {
         }
         
         new BukkitRunnable() {
-        int timeLeft = freezeTime;
+            int timeLeft = freezeTime;
 
-        @Override
-        public void run() {
-            if (timeLeft <= 0) {
+            @Override
+            public void run() {
+                if (timeLeft <= 0) {
+                    for (UUID hunterId : hunters) {
+                        Player hunter = Bukkit.getPlayer(hunterId);
+                        if (hunter != null) {
+                            hunter.sendTitle("§6GO!", "", 0, 20, 10);
+                            
+                            giveCompassTrackerToHunter(hunter);
+                        }
+                    }
+                    this.cancel();
+                    return;
+                }
+
                 for (UUID hunterId : hunters) {
                     Player hunter = Bukkit.getPlayer(hunterId);
                     if (hunter != null) {
-                        hunter.sendTitle("§6GO!", "", 0, 20, 10);
-                        
-                        ItemStack compass = new ItemStack(Material.COMPASS);
-                        CompassMeta meta = (CompassMeta) compass.getItemMeta();
-                        meta.setDisplayName("§6Runner Tracker");
-                        meta.setLodestone(hunter.getLocation());
-                        meta.setLodestoneTracked(false);
-                        compass.setItemMeta(meta);
-                        
-                        hunter.getInventory().addItem(compass);
-                        currentTargetIndex.put(hunterId, 0);
+                        hunter.sendTitle(
+                            "§c" + timeLeft,                   
+                            "§6Runners get a head start...",   
+                            0, 20, 10                          
+                        );
                     }
                 }
-                this.cancel();
-                return;
-            }
 
-            for (UUID hunterId : hunters) {
-                Player hunter = Bukkit.getPlayer(hunterId);
-                if (hunter != null) {
-                    hunter.sendTitle(
-                        "§c" + timeLeft,                   
-                        "§6Runners get a head start...",   
-                        0, 20, 10                          
-                    );
-                }
+                timeLeft--;
             }
-
-            timeLeft--;
-        }
-    }.runTaskTimer(plugin, 0L, 20L);
+        }.runTaskTimer(plugin, 0L, 20L);
 
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             Bukkit.broadcastMessage("§6=== Hunters have been unleashed! ===");
@@ -499,5 +472,26 @@ public class HuntCommand implements SubCommand, Listener {
         if (item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(key, PersistentDataType.BOOLEAN)) {
             event.setCancelled(true);
         }
+    }
+
+    public void giveCompassTrackerToHunter(Player hunter) {
+        // Hunter tracking compass
+        ItemStack compass = new ItemStack(Material.COMPASS);
+        CompassMeta meta = (CompassMeta) compass.getItemMeta();
+        meta.setDisplayName("§6Runner Tracker");
+        meta.setLodestone(hunter.getLocation());
+        meta.setLodestoneTracked(false);
+        // Add invisible Curse of Vanishing
+        meta.addEnchant(Enchantment.VANISHING_CURSE, 1, true);
+        meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
+        
+        // Mark compass with PersistentDataContainer
+        NamespacedKey key = new NamespacedKey(getPermission(), "tracker_compass");
+        meta.getPersistentDataContainer().set(key, PersistentDataType.BOOLEAN, true);
+        
+        compass.setItemMeta(meta);
+        hunter.getInventory().addItem(compass);
+        
+        currentTargetIndex.put(hunter.getUniqueId(), 0); // Compass is pointing to the first runner
     }
 }
