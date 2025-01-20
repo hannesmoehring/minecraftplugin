@@ -264,12 +264,11 @@ public class HuntCommand implements SubCommand, Listener {
                     return;
                 }
 
-                for (UUID hunterId : hunters) {
-                    Player hunter = Bukkit.getPlayer(hunterId);
-                    if (hunter != null) {
-                        hunter.sendTitle(
+                for (Player player : Bukkit.getOnlinePlayers()) {
+                    if (player != null) {
+                        player.sendTitle(
                             "§c" + timeLeft,                   
-                            "§6Runners get a head start...",   
+                            "§6 runner do be running...",   
                             0, 20, 10                          
                         );
                     }
