@@ -26,3 +26,11 @@ replay_pid*
 ./.vscode/*
 
 ./build/*
+.vscode/settings.json
+
+build
+.vscode
+
+build/reports/problems/problems-report.html
+build/tmp/shadowJar/MANIFEST.MF
+build/tmp/jar/MANIFEST.MF
