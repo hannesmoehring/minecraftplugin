@@ -298,8 +298,8 @@ public class HuntCommand implements SubCommand, Listener {
             Player runner = Bukkit.getPlayer(runnerId);
             if (runner != null && runner.getWorld().getEnvironment() == World.Environment.THE_END) {
                 if (runner.getWorld().getEnderDragonBattle() != null && 
-                    runner.getWorld().getEnderDragonBattle().getEndPortalLocation() != null) {
-                    endGame(true);  
+                    runner.getWorld().getEnderDragonBattle().getEnderDragon().isDead()) {
+                    endGame(true); 
                     }
                 }
             }
