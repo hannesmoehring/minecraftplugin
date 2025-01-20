@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -12,17 +13,22 @@ import java.util.UUID;
 import org.bukkit.Bukkit;
 import org.bukkit.GameMode;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.World;
 import org.bukkit.command.CommandSender;
+import org.bukkit.enchantments.Enchantment;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.PlayerDeathEvent;
+import org.bukkit.event.player.PlayerDropItemEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
+import org.bukkit.inventory.ItemFlag;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.CompassMeta;
+import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
 import org.bukkit.scheduler.BukkitRunnable;
@@ -214,17 +220,28 @@ public class HuntCommand implements SubCommand, Listener {
         for (UUID hunterId : hunters) {
             Player hunter = Bukkit.getPlayer(hunterId);
             if (hunter != null) {
+                // Start Effects like blindness and slowness
                 hunter.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, freezeTime * 20, 100));
                 hunter.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, freezeTime * 20, 100));
+                
+                // Hunter tracking compass
                 ItemStack compass = new ItemStack(Material.COMPASS);
                 CompassMeta meta = (CompassMeta) compass.getItemMeta();
                 meta.setDisplayName("§6Runner Tracker");
                 meta.setLodestone(hunter.getLocation());
                 meta.setLodestoneTracked(false);
-                compass.setItemMeta(meta);
+                // Add invisible Curse of Vanishing
+                meta.addEnchant(Enchantment.VANISHING_CURSE, 1, true);
+                meta.addItemFlags(ItemFlag.HIDE_ENCHANTS);
                 
+                // Mark compass with PersistentDataContainer
+                NamespacedKey key = new NamespacedKey(getPermission(), "tracker_compass");
+                meta.getPersistentDataContainer().set(key, PersistentDataType.BOOLEAN, true);
+                
+                compass.setItemMeta(meta);
                 hunter.getInventory().addItem(compass);
-                currentTargetIndex.put(hunterId, 0);
+                
+                currentTargetIndex.put(hunterId, 0); // Compass is pointing to the first runner
             }
         }
 
@@ -451,6 +468,18 @@ public class HuntCommand implements SubCommand, Listener {
         UUID playerId = player.getUniqueId();
         
         if (runners.contains(playerId)) {
+            // Prevent tracker compass from dropping
+            Iterator<ItemStack> drops = event.getDrops().iterator();
+            NamespacedKey key = new NamespacedKey(getPermission(), "tracker_compass");
+            while (drops.hasNext()) {
+                ItemStack item = drops.next();
+                if (item != null && item.hasItemMeta()) {
+                    if (item.getItemMeta().getPersistentDataContainer().has(key, PersistentDataType.BOOLEAN)) {
+                        drops.remove();
+                    }
+                }
+            }
+            
             deadRunners.add(playerId);
             
             Bukkit.broadcastMessage("§c" + player.getName() + " §6has been eliminated!");
@@ -459,6 +488,16 @@ public class HuntCommand implements SubCommand, Listener {
             if (deadRunners.size() == runners.size()) {
                 endGame(false); 
             }
+        }
+    }
+    
+    @EventHandler
+    public void onItemDrop(PlayerDropItemEvent event) {
+        // Prevent tracker compass dropping
+        ItemStack item = event.getItemDrop().getItemStack();
+        NamespacedKey key = new NamespacedKey(getPermission(), "tracker_compass");
+        if (item.hasItemMeta() && item.getItemMeta().getPersistentDataContainer().has(key, PersistentDataType.BOOLEAN)) {
+            event.setCancelled(true);
         }
     }
 }
