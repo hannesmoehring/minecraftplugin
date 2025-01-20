@@ -25,6 +25,7 @@ import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.CompassMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitRunnable;
 import org.bukkit.scheduler.BukkitTask;
 
 import me.hmPlugin.assistPl.AssistPl;
@@ -215,7 +216,6 @@ public class HuntCommand implements SubCommand, Listener {
             if (hunter != null) {
                 hunter.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, freezeTime * 20, 100));
                 hunter.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, freezeTime * 20, 100));
-                
                 ItemStack compass = new ItemStack(Material.COMPASS);
                 CompassMeta meta = (CompassMeta) compass.getItemMeta();
                 meta.setDisplayName("§6Runner Tracker");
@@ -248,6 +248,47 @@ public class HuntCommand implements SubCommand, Listener {
             player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.0f, 0.5f);
         }
         
+        new BukkitRunnable() {
+        int timeLeft = freezeTime;
+
+        @Override
+        public void run() {
+            if (timeLeft <= 0) {
+                for (UUID hunterId : hunters) {
+                    Player hunter = Bukkit.getPlayer(hunterId);
+                    if (hunter != null) {
+                        hunter.sendTitle("§6GO!", "", 0, 20, 10);
+                        
+                        ItemStack compass = new ItemStack(Material.COMPASS);
+                        CompassMeta meta = (CompassMeta) compass.getItemMeta();
+                        meta.setDisplayName("§6Runner Tracker");
+                        meta.setLodestone(hunter.getLocation());
+                        meta.setLodestoneTracked(false);
+                        compass.setItemMeta(meta);
+                        
+                        hunter.getInventory().addItem(compass);
+                        currentTargetIndex.put(hunterId, 0);
+                    }
+                }
+                this.cancel();
+                return;
+            }
+
+            for (UUID hunterId : hunters) {
+                Player hunter = Bukkit.getPlayer(hunterId);
+                if (hunter != null) {
+                    hunter.sendTitle(
+                        "§c" + timeLeft,                   
+                        "§6Runners get a head start...",   
+                        0, 20, 10                          
+                    );
+                }
+            }
+
+            timeLeft--;
+        }
+    }.runTaskTimer(plugin, 0L, 20L);
+
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             Bukkit.broadcastMessage("§6=== Hunters have been unleashed! ===");
         }, freezeTime * 20L);
@@ -258,7 +299,7 @@ public class HuntCommand implements SubCommand, Listener {
             if (runner != null && runner.getWorld().getEnvironment() == World.Environment.THE_END) {
                 if (runner.getWorld().getEnderDragonBattle() != null && 
                     runner.getWorld().getEnderDragonBattle().getEndPortalLocation() != null) {
-                    endGame(true); 
+                    endGame(true);  
                     }
                 }
             }
