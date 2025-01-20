@@ -296,7 +296,7 @@ public class HuntCommand implements SubCommand, Listener {
                     hunter.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR,
                         net.md_5.bungee.api.chat.TextComponent.fromLegacyText(
                             String.format("§6Tracking §f%s §6- §f%.1f §6blocks", 
-                            target.getName(), distance)));
+                            target.getName(), distance)));  
                     
                     CompassMeta meta = (CompassMeta) event.getItem().getItemMeta();
                     meta.setLodestone(target.getLocation());
