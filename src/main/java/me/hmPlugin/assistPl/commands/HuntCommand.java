@@ -10,18 +10,22 @@ import java.util.Set;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.GameMode;
 import org.bukkit.Material;
 import org.bukkit.Sound;
+import org.bukkit.World;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.PlayerDeathEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.CompassMeta;
 import org.bukkit.potion.PotionEffect;
 import org.bukkit.potion.PotionEffectType;
+import org.bukkit.scheduler.BukkitTask;
 
 import me.hmPlugin.assistPl.AssistPl;
 import me.hmPlugin.assistPl.SubCommand;
@@ -33,6 +37,11 @@ public class HuntCommand implements SubCommand, Listener {
     private final Set<UUID> hunters = new HashSet<>();
     private final Set<UUID> runners = new HashSet<>();
     private final Map<UUID, Integer> currentTargetIndex = new HashMap<>();
+    private final int fadeIn = 10;   
+    private final int stay = 60;     
+    private final int fadeOut = 20; 
+    private final Set<UUID> deadRunners = new HashSet<>();
+    private BukkitTask checkGameEndTask = null;
 
     public HuntCommand(AssistPl plugin) {
         this.plugin = plugin;
@@ -76,12 +85,16 @@ public class HuntCommand implements SubCommand, Listener {
             sender.sendMessage("§cA game is already in progress!");
             return true;
         }
-
+        
         isGamePrepared = true;
         hunters.clear();
         runners.clear();
         currentTargetIndex.clear();
         
+        for (Player player : Bukkit.getOnlinePlayers()) {
+            player.sendTitle("§6§l Manhunt", "§fa hunt is being prepared by " + sender.getDisplayName(), fadeIn, stay, fadeOut);
+        }
+
         Bukkit.broadcastMessage("§6=== Manhunt Game Prepared ===");
         Bukkit.broadcastMessage("§fUse §7/hm hunter add <player>§f to add hunters");
         Bukkit.broadcastMessage("§fUse §7/hm runner add <player>§f to add runners");
@@ -195,16 +208,14 @@ public class HuntCommand implements SubCommand, Listener {
     private void startHunt(int freezeTime) {
         isGameActive = true;
         isGamePrepared = false;
-
-        // Give hunters their tracking compasses
+        deadRunners.clear(); 
+        
         for (UUID hunterId : hunters) {
             Player hunter = Bukkit.getPlayer(hunterId);
             if (hunter != null) {
-                // Apply effects
                 hunter.addPotionEffect(new PotionEffect(PotionEffectType.BLINDNESS, freezeTime * 20, 100));
                 hunter.addPotionEffect(new PotionEffect(PotionEffectType.SLOW, freezeTime * 20, 100));
                 
-                // Give compass
                 ItemStack compass = new ItemStack(Material.COMPASS);
                 CompassMeta meta = (CompassMeta) compass.getItemMeta();
                 meta.setDisplayName("§6Runner Tracker");
@@ -222,13 +233,17 @@ public class HuntCommand implements SubCommand, Listener {
         Bukkit.broadcastMessage("§fRunners, start running!");
 
         String title = "§4§lThe Hunt Begins!";
-        String subtitle = "§cRun while you can...";
-        int fadeIn = 10;   // 10 ticks (0.5 sec)
-        int stay = 60;     // 60 ticks (3 sec)
-        int fadeOut = 20;  // 20 ticks (1 sec)
+        String subtitle_runner = "§cRun bitch run!";
+        String subtitle_hunter = "§c You go get 'em man!";
+         
 
         for (Player player : Bukkit.getOnlinePlayers()) {
-            player.sendTitle(title, subtitle, fadeIn, stay, fadeOut);
+            if (runners.contains(player.getUniqueId())) {
+                player.sendTitle(title, subtitle_runner, fadeIn, stay, fadeOut);
+            } else {
+                player.sendTitle(title, subtitle_hunter, fadeIn, stay, fadeOut);
+            }
+            
 
             player.playSound(player.getLocation(), Sound.ENTITY_ENDER_DRAGON_GROWL, 1.0f, 0.5f);
         }
@@ -236,6 +251,18 @@ public class HuntCommand implements SubCommand, Listener {
         Bukkit.getScheduler().runTaskLater(plugin, () -> {
             Bukkit.broadcastMessage("§6=== Hunters have been unleashed! ===");
         }, freezeTime * 20L);
+
+        checkGameEndTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+        for (UUID runnerId : runners) {
+            Player runner = Bukkit.getPlayer(runnerId);
+            if (runner != null && runner.getWorld().getEnvironment() == World.Environment.THE_END) {
+                if (runner.getWorld().getEnderDragonBattle() != null && 
+                    runner.getWorld().getEnderDragonBattle().getEndPortalLocation() != null) {
+                    endGame(true); 
+                    }
+                }
+            }
+        }, 20L, 20L);
     }
 
     @EventHandler
@@ -266,8 +293,10 @@ public class HuntCommand implements SubCommand, Listener {
             if (target != null) {
                 if (target.getWorld() == hunter.getWorld()) {
                     double distance = target.getLocation().distance(hunter.getLocation());
-                    hunter.sendMessage(String.format("§6Distance to §f%s§6: §f%.1f §6blocks", 
-                        target.getName(), distance));
+                    hunter.spigot().sendMessage(net.md_5.bungee.api.ChatMessageType.ACTION_BAR,
+                        net.md_5.bungee.api.chat.TextComponent.fromLegacyText(
+                            String.format("§6Tracking §f%s §6- §f%.1f §6blocks", 
+                            target.getName(), distance)));
                     
                     CompassMeta meta = (CompassMeta) event.getItem().getItemMeta();
                     meta.setLodestone(target.getLocation());
@@ -321,5 +350,74 @@ public class HuntCommand implements SubCommand, Listener {
         }
         
         return completions;
+    }
+
+    private void endGame(boolean runnersWon) {
+        if (!isGameActive) return;
+        
+        isGameActive = false;
+        
+        if (checkGameEndTask != null) {
+            checkGameEndTask.cancel();
+            checkGameEndTask = null;
+        }
+        
+        Bukkit.broadcastMessage("§6=== Manhunt Has Ended! ===");
+        if (runnersWon) {
+            Bukkit.broadcastMessage("§a§lRunners have won!");
+        } else {
+            Bukkit.broadcastMessage("§c§lHunters have won!");
+        }
+        
+        Bukkit.broadcastMessage("§6=== Final Stats ===");
+        Bukkit.broadcastMessage("§fSurviving Runners: §6" + 
+            (runners.size() - deadRunners.size()) + "/" + runners.size());
+        
+        for (UUID hunterId : hunters) {
+            Player hunter = Bukkit.getPlayer(hunterId);
+            if (hunter != null) {
+                ItemStack[] contents = hunter.getInventory().getContents();
+                for (int i = 0; i < contents.length; i++) {
+                    ItemStack item = contents[i];
+                    if (item != null && item.getType() == Material.COMPASS) {
+                        if (item.hasItemMeta() && item.getItemMeta().hasDisplayName() &&
+                            item.getItemMeta().getDisplayName().equals("§6Runner Tracker")) {
+                            hunter.getInventory().setItem(i, null);
+                        }
+                    }
+                }
+            }
+        }
+        
+        for (UUID runnerId : runners) {
+            Player runner = Bukkit.getPlayer(runnerId);
+            if (runner != null) {
+                runner.setGameMode(GameMode.SURVIVAL);
+            }
+        }
+        
+        hunters.clear();
+        runners.clear();
+        deadRunners.clear();
+        currentTargetIndex.clear();
+    }
+
+    @EventHandler
+    public void onPlayerDeath(PlayerDeathEvent event) {
+        if (!isGameActive) return;
+        
+        Player player = event.getEntity();
+        UUID playerId = player.getUniqueId();
+        
+        if (runners.contains(playerId)) {
+            deadRunners.add(playerId);
+            
+            Bukkit.broadcastMessage("§c" + player.getName() + " §6has been eliminated!");
+            
+            player.setGameMode(GameMode.SPECTATOR);
+            if (deadRunners.size() == runners.size()) {
+                endGame(false); 
+            }
+        }
     }
 }
